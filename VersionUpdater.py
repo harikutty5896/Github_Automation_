@@ -1,3 +1,4 @@
+import _thread
 import time
 import ChangeVersion
 import GitOperation
@@ -44,29 +45,19 @@ def create_sample():
         print("Sample file Config created Successfully")
 
 
-def remove_access_denied(func, path, excinfo):
-    os.chmod(path, stat.S_IWUSR)
-    func(path)
-
-
-def remove_readonly(func, path, exc_info):
-    os.chmod(path, stat.S_IWRITE)
-    func(path)
-
-
 def del_directory(d_path):
-    shutil.rmtree(d_path, onerror=remove_access_denied, ignore_errors=True)
-    shutil.rmtree(d_path, onerror=remove_readonly, ignore_errors=True)
-    for root, dirs, files in os.walk(d_path):
-        for dir in dirs:
-            os.chmod(os.path.join(root, dir), stat.S_IRWXU)
-        for file in files:
-            os.chmod(os.path.join(root, file), stat.S_IRWXU)
-    shutil.rmtree(d_path)
+    _thread.interrupt_main()
+    shutil.rmtree(d_path,ignore_errors=True)
+    time.sleep(3)
+    cmd = 'rmdir /s /q ' + d_path
+    os.system(cmd)
+    print("Directory deleted successfully")
+    my_logger.logger.info("Directory deleted successfully")
     my_logger.logger.info("Existing Directory Deleted successfully")
 
 
-def main_thread():
+if __name__ == '__main__':
+    dpath = ''
     print(Fore.CYAN + 'VERSION UPDATER')
     print("===================================================\n")
     print("You must have to configure JSON file (git_config , file_config) in this directory \n"
@@ -89,13 +80,19 @@ def main_thread():
                     go = GitOperation.GitOperation('git_config.json')
                     go.git_pull()
 
-                    cv = ChangeVersion.ChangeVersion('file_config.json')
+                    local_rep_path = go.get_file_path()
+                    cv = ChangeVersion.ChangeVersion('file_config.json', local_rep_path)
                     cv.replace_version()
 
-                    go.git_push()
+                    f_list = cv.get_files_to_commit()
 
+                    go.git_push(f_list)
+                    dpath = go.get_file_path()
+
+                    del go
                     print('\n\n')
                     time.sleep(2)
+
                 else:
                     print("File not found")
 
@@ -112,29 +109,23 @@ def main_thread():
     my_logger.logger.debug("**************** PROGRAM ENDED **********************")
     my_logger.logger.info("****************************************************")
 
-
-def delete_dir_thread(dpath):
-    print("Dpath:"+dpath)
+    print("Delete path:" + dpath)
     del_dir = input("Do you want to delete the created directory ? PRESS 'Y' or 'N' : ")
+
     if del_dir == 'Y' or del_dir == 'y':
-        del_directory(dpath)
-        print("Directory deleted successfully")
-        my_logger.logger.info("Directory deleted successfully")
-
-
-if __name__ == '__main__':
-    try:
-        m_thrd = threading.Thread(target=main_thread)
-
-        m_thrd.start()
-        m_thrd.join()
-
-        dpath = GitOperation.file_path
-        del_thrd = threading.Thread(target=delete_dir_thread, args=(dpath,))
-
+        del_thrd = threading.Thread(target=del_directory, args=(dpath,))
+        del_thrd.setDaemon(True)
         del_thrd.start()
-        del_thrd.join()
-        close = input("Press Enter to close")
-        exit()
-    except:
-        pass
+    print("Main Thread Finished")
+
+    '''
+        1. git operation
+        2. clone
+        3. changeversion(json, local repo foldername) -> file changes -> list update names
+        4. changeversion -> getter for list
+        5. git operation commit
+        6. git operation push
+        7. user del or not ->
+            y - new thread -> del folder
+            n - close
+    '''

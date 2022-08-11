@@ -8,10 +8,8 @@ import subprocess
 import ChangeVersion
 from datetime import datetime
 
-file_path = ''
 
-
-class GitOperation():
+class GitOperation:
     def __init__(self, gjson_path):
         self.repo = None
         my_logger.logger.info("----------------------------------------")
@@ -23,6 +21,7 @@ class GitOperation():
         self.files_list = []
         self.path = os.getcwd()
         self.branch = "master"
+        self.updated_file_path = ''
         try:
             with open(self.git_json_path, 'r', encoding='utf-8') as git_json_file:
                 self.json_file_data = json.load(git_json_file)
@@ -32,24 +31,27 @@ class GitOperation():
                 self.git_json_dict = self.git_load_json_to_map()  # load json to dict
                 self.parse_data_from_dict()
 
-                global file_path
                 # if clone_path is not specified creating directory in script folder
                 if not (self.git_clone_path.strip()):
                     my_logger.logger.info("Given path is empty in json file")
                     print("Given clone path is empty")
-                    file_path = os.path.join(self.path, "Repository")
-                    self.git_clone_path = file_path
+
+                    self.updated_file_path = os.path.join(self.path, "Repository")
+                    self.git_clone_path = self.updated_file_path
+
                 else:
-                    file_path = self.git_clone_path
+                    self.updated_file_path = self.git_clone_path
 
                 # if directory exist creates new directory with timestamp
-                self.isdir_exist = os.path.isdir(file_path)
+                self.isdir_exist = os.path.isdir(self.updated_file_path)
                 if self.isdir_exist:
                     milliseconds = int(round(time.time() * 1000))
                     self.git_clone_path = self.git_clone_path + '_' + str(milliseconds)
+
                     my_logger.logger.info("Creating new directory with timestamp")
                     print("Creating new directory with timestamp")
-                    file_path = self.git_clone_path
+
+                    self.updated_file_path = self.git_clone_path
 
         except FileNotFoundError:
             my_logger.logger.error("Error in opening git json file")
@@ -83,8 +85,7 @@ class GitOperation():
             msg = "Exception occurred in parse_data_from_dict()"
             print(msg)
 
-    def add_files_for_commit(self):
-        source_list = ChangeVersion.get_file_list  # it must contain files which has modified
+    def add_files_for_commit(self, source_list):
         for key in source_list:
             self.files_list.append(key)
             self.repo.git.add(key)
@@ -108,9 +109,9 @@ class GitOperation():
         except:
             my_logger.logger.error("Error occurred in commit_files()", exc_info=True)
 
-    def git_push(self):
+    def git_push(self, files_list):
         try:
-            self.add_files_for_commit()
+            self.add_files_for_commit(files_list)
             self.commit_files()
             try:
                 origin = self.repo.remote(name='origin')
@@ -154,3 +155,6 @@ class GitOperation():
     def __del__(self):
         print("Destructor of GitOperation")
         Repo.__del__(self)
+
+    def get_file_path(self):
+        return self.updated_file_path
