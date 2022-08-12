@@ -1,14 +1,11 @@
-import _thread
 import time
+from git import rmtree
 import ChangeVersion
-import GitOperation
 import my_logger
 import json
-import shutil
-import stat
 import os
-import threading
 from colorama import init, Fore
+from GitOperation import GitOperation
 
 init(convert=True)  # For Console color
 
@@ -46,14 +43,9 @@ def create_sample():
 
 
 def del_directory(d_path):
-    _thread.interrupt_main()
-    shutil.rmtree(d_path,ignore_errors=True)
-    time.sleep(3)
-    cmd = 'rmdir /s /q ' + d_path
-    os.system(cmd)
+    rmtree(d_path)
     print("Directory deleted successfully")
     my_logger.logger.info("Directory deleted successfully")
-    my_logger.logger.info("Existing Directory Deleted successfully")
 
 
 if __name__ == '__main__':
@@ -72,13 +64,12 @@ if __name__ == '__main__':
         if choice == 1:
             create_sample()
             print("Configure JSON and Run Version Updater")
-
         elif choice == 2:
             try:
                 if bool(check_files()):
                     my_logger.logger.debug("**************** STARTS HERE **********************")
-                    go = GitOperation.GitOperation('git_config.json')
-                    go.git_pull()
+                    go = GitOperation('git_config.json')
+                    go.git_clone()
 
                     local_rep_path = go.get_file_path()
                     cv = ChangeVersion.ChangeVersion('file_config.json', local_rep_path)
@@ -92,10 +83,6 @@ if __name__ == '__main__':
                     del go
                     print('\n\n')
                     time.sleep(2)
-
-                else:
-                    print("File not found")
-
             except:
                 my_logger.logger.error("Exception Occurred in Version Updater", exc_info=True)
                 print("Exception Occurred in Version Updater!!")
@@ -103,29 +90,18 @@ if __name__ == '__main__':
         else:
             print("Not a valid choice")
     except:
-        print('Not a Valid Choice')
+        print('Not a Valid Choice !')
         my_logger.logger.error("Exception on Version Updater", exc_info=True)
 
     my_logger.logger.debug("**************** PROGRAM ENDED **********************")
     my_logger.logger.info("****************************************************")
 
-    print("Delete path:" + dpath)
-    del_dir = input("Do you want to delete the created directory ? PRESS 'Y' or 'N' : ")
+    if dpath:
+        print("Delete path:" + dpath)
+        del_dir = input("Do you want to delete the created directory ? PRESS 'Y' or 'N' : ")
 
-    if del_dir == 'Y' or del_dir == 'y':
-        del_thrd = threading.Thread(target=del_directory, args=(dpath,))
-        del_thrd.setDaemon(True)
-        del_thrd.start()
-    print("Main Thread Finished")
+        if del_dir == 'Y' or del_dir == 'y':
+            del_directory(dpath)
 
-    '''
-        1. git operation
-        2. clone
-        3. changeversion(json, local repo foldername) -> file changes -> list update names
-        4. changeversion -> getter for list
-        5. git operation commit
-        6. git operation push
-        7. user del or not ->
-            y - new thread -> del folder
-            n - close
-    '''
+    close = input("Press Enter to Close !!")
+    exit()

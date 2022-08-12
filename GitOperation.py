@@ -1,11 +1,10 @@
 import os.path
 import sys
 import time
+import git
 from git import Repo
 import json
 import my_logger
-import subprocess
-import ChangeVersion
 from datetime import datetime
 
 
@@ -28,13 +27,13 @@ class GitOperation:
                 my_logger.logger.info("Git data json file opened successfully")
 
                 # After read and store the lines in json_file_data load and parse has to happen in constructor
-                self.git_json_dict = self.git_load_json_to_map()  # load json to dict
+                self.git_json_dict = self.git_load_json_to_map(self.json_file_data)  # load json to dict
                 self.parse_data_from_dict()
 
                 # if clone_path is not specified creating directory in script folder
                 if not (self.git_clone_path.strip()):
                     my_logger.logger.info("Given path is empty in json file")
-                    print("Given clone path is empty")
+                    print("Given clone path is empty\n")
 
                     self.updated_file_path = os.path.join(self.path, "Repository")
                     self.git_clone_path = self.updated_file_path
@@ -49,7 +48,7 @@ class GitOperation:
                     self.git_clone_path = self.git_clone_path + '_' + str(milliseconds)
 
                     my_logger.logger.info("Creating new directory with timestamp")
-                    print("Creating new directory with timestamp")
+                    print("\nCreating new directory with timestamp\n")
 
                     self.updated_file_path = self.git_clone_path
 
@@ -57,17 +56,20 @@ class GitOperation:
             my_logger.logger.error("Error in opening git json file")
             my_logger.logger.error("Exception occurred in Git operation constructor", exc_info=True)
 
-    def git_load_json_to_map(self):
+    def git_load_json_to_map(self, json_data):
         temp_dict = {}
         try:
-            for item in self.json_file_data:
-                value = self.json_file_data[item]
+
+            for item in json_data:
+                value = json_data[item]
                 temp_dict[item] = value
                 my_logger.logger.info("{} added to dict Successfully".format(item))
+
         except AttributeError:
             my_logger.logger.error("AttributeError Exception occurred", exc_info=True)
             msg = "Attribute Error occurred while loading data from json to dict !!"
             print(msg)
+
         return temp_dict
 
     def parse_data_from_dict(self):
@@ -89,7 +91,12 @@ class GitOperation:
         for key in source_list:
             self.files_list.append(key)
             self.repo.git.add(key)
-        subprocess.run(["git", "status"], cwd=self.git_clone_path)
+
+        changedFiles = [item.a_path for item in self.repo.index.diff('Head')]
+        if changedFiles:
+            print("Below files are Modified:")
+            for files in changedFiles:
+                print(files)
 
     def commit_files(self):
         try:
@@ -103,8 +110,7 @@ class GitOperation:
 
             msg = 'Commit from VersionUpdater on ' + time_ + ' Files: ' + files_string
             self.repo.index.commit(msg)
-            # subprocess.run(["git", "show"], cwd=self.git_clone_path)
-            # above line show changed line and previous line
+            my_logger.logger.info("Commit Message :" + msg)
 
         except:
             my_logger.logger.error("Error occurred in commit_files()", exc_info=True)
@@ -115,10 +121,14 @@ class GitOperation:
             self.commit_files()
             try:
                 origin = self.repo.remote(name='origin')
+                origin.pull()  # how to resolve conflict?
+
                 if bool(origin.push()):
                     print("\n\nUpdated and Pushed successfully")
                     my_logger.logger.info("Updated and Pushed successfully")
-
+                else:
+                    print("\n\nPush FAILED")
+                    my_logger.logger.info("Push FAILED", exc_info=True)
             except:
                 print("Error in git_push()")
                 my_logger.logger.error("Error in git_push()", exc_info=True)
@@ -127,20 +137,14 @@ class GitOperation:
             my_logger.logger.error("Error in git_push() method while adding files for commit", exc_info=True)
             print("Error in git_push()")
 
-    def git_pull(self):
+    def git_clone(self):
         try:
-            if not self.isdir_exist:
-                print("Directory not exist ..Creating new Directory")
-                my_logger.logger.info("Directory not exist ..Creating new Directory")
-            else:
-                print("Directory Exist.Creating new directory with timestamp")
-                my_logger.logger.info("Directory Exist.Deleting and creating this directory again")
 
-            Repo.clone_from(self.git_repo_url, self.git_clone_path)
-            subprocess.run(["git", "switch", self.branch], cwd=self.git_clone_path)
+            r = Repo.clone_from(self.git_repo_url, self.git_clone_path)
+            r.git.checkout(self.branch)
 
             my_logger.logger.info("Github repository cloned successfully")
-            print("Github repository cloned successfully")
+            print("Github repository cloned successfully\n")
 
             # after parsing the data and directory is created
             self.repo = Repo(self.git_clone_path)
@@ -153,8 +157,8 @@ class GitOperation:
             sys.exit()
 
     def __del__(self):
-        print("Destructor of GitOperation")
-        Repo.__del__(self)
+        git_repo = git.Repo(self.updated_file_path)
+        git_repo.close()
 
     def get_file_path(self):
         return self.updated_file_path
